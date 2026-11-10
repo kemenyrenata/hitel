@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loan Tracker</title>
+<style>
+  :root{
+    --accent:#6d4aff;
+    --accent-soft:#efeaff;
+    --bg:#f6f5fb;
+    --card:#ffffff;
+    --text:#1c1a27;
+    --muted:#6b6880;
+    --border:#e4e2ee;
+    --danger:#d64550;
+    --ok:#1e9e6a;
+    --ok-soft:#e6f6ef;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;padding:24px 16px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:1.6rem;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+  h1 .dot{width:14px;height:14px;border-radius:4px;background:var(--accent);display:inline-block}
+  .sub{color:var(--muted);margin-bottom:14px;font-size:.95rem}
+
+  /* ---------- top toolbar ---------- */
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .toolbar button{padding:8px 14px;font-size:.88rem}
+
+  /* ---------- cards ---------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:14px}
+  .card{
+    background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:16px 18px;box-shadow:0 1px 3px rgba(28,26,39,.05);
+  }
+  .card h3{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:6px}
+  .card .value{font-size:1.35rem;font-weight:700;white-space:nowrap}
+  .card .sub{font-size:.82rem;margin:4px 0 0;color:var(--muted)}
+  .card.highlight{border-color:var(--accent);background:var(--accent-soft)}
+  .card.trigger-reached{border-color:var(--ok);background:var(--ok-soft)}
+  .card.trigger-reached h3{color:var(--ok)}
+
+  .progress-card{margin-bottom:14px}
+  .progress-track{height:12px;background:var(--accent-soft);border-radius:999px;overflow:hidden;margin-top:10px}
+  .progress-fill{height:100%;background:var(--accent);border-radius:999px;transition:width .4s ease;width:0}
+  .progress-labels{display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted);margin-top:6px;gap:10px;flex-wrap:wrap}
+
+  /* ---------- table ---------- */
+  .table-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(28,26,39,.05)}
+  .table-scroll{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:1000px}
+  thead th{
+    position:sticky;top:0;background:var(--card);
+    text-align:right;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);padding:12px 14px;border-bottom:2px solid var(--border);white-space:nowrap;
+  }
+  thead th:nth-child(-n+2), tbody td:nth-child(-n+2){text-align:left}
+  tbody td{padding:10px 14px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr.paid td{color:var(--muted)}
+  tbody tr.paid td:first-child{position:relative}
+  tbody tr.paid td:first-child::after{content:" ✓";color:var(--ok);font-weight:700}
+  tr.crossover td{border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);background:var(--accent-soft)}
+  tr.crossover td:first-child{border-left:2px solid var(--accent)}
+  tr.crossover td:last-child{border-right:2px solid var(--accent)}
+  tr.threshold td{border-top:2px dashed var(--ok);border-bottom:2px dashed var(--ok);background:var(--ok-soft)}
+  tr.threshold td:first-child{border-left:2px dashed var(--ok)}
+  tr.threshold td:last-child{border-right:2px dashed var(--ok)}
+  tr.today-row td{box-shadow:inset 3px 0 0 var(--accent)}
+  @keyframes rowflash{0%{background:var(--accent-soft)}100%{background:transparent}}
+  tr.flash td{animation:rowflash 1.6s ease-out 2}
+  @keyframes panelflash{0%{box-shadow:0 0 0 3px var(--accent-soft)}100%{box-shadow:0 1px 3px rgba(28,26,39,.05)}}
+  .panel.flash-panel{animation:panelflash 1.4s ease-out 2}
+  .paid-check{transform:scale(1.25);accent-color:var(--ok);cursor:pointer}
+  .saved-input{
+    width:120px;padding:5px 8px;border:1px solid var(--border);border-radius:8px;
+    text-align:right;font:inherit;font-variant-numeric:tabular-nums;
+  }
+  .saved-input:focus{outline:2px solid var(--accent);border-color:transparent}
+  .table-note{padding:12px 16px;font-size:.83rem;color:var(--muted);border-top:1px solid var(--border);background:#fafafe}
+
+  /* ---------- forms & footer actions ---------- */
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;margin-top:14px;box-shadow:0 1px 3px rgba(28,26,39,.05)}
+  .panel h2{font-size:1.05rem;margin-bottom:6px}
+  .panel .panel-hint{font-size:.83rem;color:var(--muted);margin-bottom:14px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:16px}
+  label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:5px}
+  input[type="text"],input[type="number"],input[type="date"]{
+    width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font:inherit;background:#fff;
+  }
+  input:focus{outline:2px solid var(--accent);border-color:transparent}
+  .form-error{color:var(--danger);font-size:.85rem;margin-bottom:10px;min-height:1.2em}
+  .actions{display:flex;gap:10px;flex-wrap:wrap}
+  button{
+    font:inherit;font-weight:600;padding:10px 18px;border-radius:9px;border:none;cursor:pointer;
+    transition:filter .15s ease;
+  }
+  button:hover{filter:brightness(1.08)}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-secondary{background:var(--accent-soft);color:var(--accent)}
+  .btn-danger{background:#fdeef0;color:var(--danger)}
+  .footer-actions{margin-top:22px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+  .backup-note{margin-top:10px;font-size:.8rem;color:var(--muted);text-align:right}
+  tr.change-row td{
+    text-align:left!important;white-space:normal;font-size:.85rem;padding:9px 14px;
+    background:#fff7e0;border-top:2px solid #f0c75e;border-bottom:1px solid #f0c75e;color:var(--text);
+  }
+  tr.change-row.prepay td{background:var(--ok-soft);border-top-color:var(--ok);border-bottom-color:var(--ok)}
+  .change-tag{font-weight:700;margin-right:6px}
+  .undo-prepay{padding:3px 10px;font-size:.78rem;margin-left:10px;background:#fff;color:var(--danger);border:1px solid var(--border)}
+  .prepay-panel{margin-top:0;margin-bottom:14px;border-color:var(--ok);background:var(--ok-soft)}
+  .prepay-panel select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:9px;font:inherit;background:#fff}
+  .pp-preview{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+  .pp-table{width:100%;min-width:0;font-size:.88rem;border-collapse:collapse}
+  .pp-table th{position:static;text-align:left;font-size:.72rem;padding:4px 8px;border-bottom:1px solid var(--border)}
+  .pp-table td{padding:5px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:normal}
+  .pp-table tbody tr:last-child td{border-bottom:none}
+  .pp-arrow{color:var(--muted);width:24px;text-align:center!important}
+  .pp-same{font-size:.75rem;color:var(--muted)}
+  .pp-wrap{overflow-x:auto}
+  .pp-table th{text-align:right!important;vertical-align:bottom}
+  .pp-table th:first-child,.pp-table td:first-child{text-align:left!important}
+  .pp-table td{text-align:right!important;white-space:nowrap}
+  .pp-table td:first-child{white-space:normal}
+  .pp-sub{font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)}
+  .pp-hl td{font-weight:700;background:var(--ok-soft)}
+  .pp-hint{font-size:.85rem;color:var(--muted);margin-top:6px}
+  .card-link{background:none;border:none;padding:0;margin-top:8px;font-size:.8rem;color:var(--accent);cursor:pointer;font-weight:600}
+  .card-link:hover{text-decoration:underline}
+  .target-form{margin-top:8px}
+  .target-form label{display:block;font-size:.74rem;color:var(--muted);margin:6px 0 2px}
+  .target-form input{width:100%;padding:6px 10px;font-size:.9rem}
+  .target-actions{display:flex;gap:8px;margin-top:8px}
+  .target-actions button{padding:6px 12px;font-size:.82rem}
+  .top-bar{display:flex;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--border)}
+  .top-bar button{padding:7px 14px;font-size:.85rem}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot"></span>Loan Tracker</h1>
+  <p class="sub">Follow your loan month by month — and see when your savings would cover what you still owe.</p>
+  <div class="toolbar" id="toolbar"></div>
+  <div id="app"></div>
+</div>
+
+<script>
+"use strict";
+const LS_KEY = "loan-tracker-v2";
+// Pre-payment trigger: savings reaching this many installments plus this lump sum
+const DEFAULT_TRIGGER_INSTALLMENTS = 12;
+const DEFAULT_TRIGGER_LUMP = 5000000;
+function trigInst(){ return state.settings ? state.settings.triggerInstallments : DEFAULT_TRIGGER_INSTALLMENTS; }
+function trigLump(){ return state.settings ? state.settings.triggerLump : DEFAULT_TRIGGER_LUMP; }
+
+let state = load();
+let editing = false;
+
+/* ---------- date helpers (local-time safe) ---------- */
+function parseISO(s){
+  const [y,m,d] = s.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
+function dateKey(d){
+  const p = n => String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate());
+}
+function addMonths(d, m){
+  const y=d.getFullYear(), mo=d.getMonth(), day=d.getDate();
+  const t=new Date(y, mo+m, 1);
+  const dim=new Date(y, mo+m+1, 0).getDate();
+  t.setDate(Math.min(day, dim));
+  return t;
+}
+
+/* ---------- state ---------- */
+function defaultSettings(){ return { triggerInstallments:DEFAULT_TRIGGER_INSTALLMENTS, triggerLump:DEFAULT_TRIGGER_LUMP }; }
+function emptyState(){ return { loan:null, segments:[], paid:{}, savedOvr:{}, changes:[], settings:defaultSettings() }; }
+function newId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function esc(t){ return String(t).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function normalize(s){
+  const n = emptyState();
+  if(!s || typeof s !== "object" || !s.loan) return n;
+  const loan = {
+    name: s.loan.name || "",
+    amount: Math.max(0, +s.loan.amount || 0),
+    startDate: s.loan.startDate
+  };
+  if(!(loan.amount>0) || !loan.startDate) return n;
+  n.loan = loan;
+
+  if(Array.isArray(s.segments) && s.segments.length &&
+     s.segments.every(g => typeof +g.ratePct==="number" && isFinite(+g.ratePct) && +g.ratePct>=0 &&
+                        Number.isInteger(+g.count) && +g.count>=1)){
+    // term = length the payment is calculated over (can exceed count when a segment was cut short by a later change)
+    n.segments = s.segments.map(g => {
+      const count = +g.count;
+      const o = { ratePct:+g.ratePct, count, term:(Number.isInteger(+g.term) && +g.term>=count) ? +g.term : count };
+      if(+g.prepay>0) o.prepay = +g.prepay;
+      if(+g.fixedPay>0) o.fixedPay = +g.fixedPay;
+      return o;
+    });
+  }else{
+    // older backup: single flat rate for the whole term
+    const rate = Math.max(0, +s.loan.ratePct || 0);
+    const term = Number.isInteger(+s.loan.termMonths) && +s.loan.termMonths>=1 ? +s.loan.termMonths : 1;
+    n.segments = [{ ratePct: rate, count: term, term }];
+    const rows = buildSchedule(n.loan, n.segments);
+    if(s.overrides && typeof s.overrides==="object"){
+      for(const k of Object.keys(s.overrides)){
+        const idx = +k, ov = s.overrides[k] || {};
+        const row = rows[idx-1];
+        if(!row) continue;
+        const key = dateKey(row.date);
+        if(ov.paid) n.paid[key] = true;
+        if(ov.saved !== undefined && ov.saved !== null && isFinite(+ov.saved)) n.savedOvr[key] = +ov.saved;
+      }
+    }
+  }
+  if(s.paid && typeof s.paid==="object") for(const k of Object.keys(s.paid)) n.paid[k] = true;
+  if(s.savedOvr && typeof s.savedOvr==="object")
+    for(const k of Object.keys(s.savedOvr)) if(isFinite(+s.savedOvr[k])) n.savedOvr[k] = +s.savedOvr[k];
+  if(s.settings && typeof s.settings==="object"){
+    const ti = +s.settings.triggerInstallments, tl = +s.settings.triggerLump;
+    if(Number.isInteger(ti) && ti>=0) n.settings.triggerInstallments = ti;
+    if(isFinite(tl) && tl>=0) n.settings.triggerLump = tl;
+  }
+  if(Array.isArray(s.changes)){
+    n.changes = s.changes.filter(c => c && typeof c.key==="string" && typeof c.text==="string")
+      .map(c => ({ id:String(c.id||newId()), kind:c.kind==="prepay"?"prepay":"edit", key:c.key, text:c.text, amount:+c.amount||0 }));
+  }
+  return n;
+}
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(LS_KEY));
+    if(s && typeof s==="object") return normalize(s);
+  }catch(e){}
+  return emptyState();
+}
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ---------- formatting ---------- */
+function fmt(n){
+  return new Intl.NumberFormat("hu-HU",{maximumFractionDigits:0}).format(Math.round(n)) + " Ft";
+}
+function fmtPct(x){
+  return x.toLocaleString("hu-HU",{maximumFractionDigits:2}) + " %";
+}
+function fmtDate(d){
+  return d.toLocaleDateString("hu-HU",{year:"numeric",month:"short",day:"numeric"});
+}
+
+/* ---------- math ---------- */
+function buildSchedule(loan, segments){
+  let bal = loan.amount;
+  const startD = parseISO(loan.startDate);
+  const rows = [];
+  for(const seg of segments){
+    if(bal <= 0) return rows;
+    const prepay = seg.prepay || 0;
+    bal = Math.max(0, bal - prepay);               // pre-payment lands right before this segment's first installment
+    if(bal <= 0) return rows;
+    const r = seg.ratePct/100/12;
+    const term = seg.term || seg.count;           // payment is calculated over the full term, even if the segment was cut short
+    let pay = seg.fixedPay ? seg.fixedPay
+            : (r>0 ? Math.ceil(bal*r/(1-Math.pow(1+r,-term))) : Math.ceil(bal/term));
+    for(let k=0;k<seg.count;k++){
+      const interest = Math.round(bal*r);
+      let principal = pay - interest;
+      if(principal >= bal) principal = bal;
+      const payment = principal + interest;
+      bal -= principal;
+      rows.push({
+        i: rows.length+1, date: addMonths(startD, rows.length+1),
+        payment, interest, principal, balance: bal, ratePct: seg.ratePct,
+        prepay: k===0 ? prepay : 0
+      });
+      if(bal <= 0) return rows;
+    }
+  }
+  return rows;
+}
+
+/* split a segment so that one starts exactly at row index b (0-based); first part keeps its payment basis */
+function splitAt(segs, b){
+  const out = [];
+  let acc = 0;
+  for(const s of segs){
+    if(acc < b && acc + s.count > b){
+      const first = b - acc, rest = s.count - first;
+      out.push({ ...s, count:first, term: s.term || s.count });
+      out.push({ ratePct:s.ratePct, count:rest, term:rest });
+    }else out.push({ ...s, term: s.term || s.count });
+    acc += s.count;
+  }
+  return out;
+}
+/* segments covering exactly the first b rows, plus the segment that used to start at row b (if any) */
+function segmentsBefore(segs, b){
+  const sp = splitAt(segs, b);
+  const kept = [];
+  let acc = 0, atB = null;
+  for(const g of sp){
+    if(acc >= b){ atB = g; break; }
+    kept.push(g); acc += g.count;
+  }
+  return { kept, atB };
+}
+
+function derive(){
+  if(!state.loan || !state.segments.length) return null;
+  const loan = state.loan;
+  const rows = buildSchedule(loan, state.segments);
+  if(!rows.length) return null;
+  let cum = 0, crossoverIdx = -1, thresholdIdx = -1;
+  const triggerTarget = trigInst() * rows[0].payment + trigLump();
+  for(const row of rows){
+    const key = dateKey(row.date);
+    row.key = key;
+    row.paid = !!state.paid[key];
+    row.savedIn = (state.savedOvr[key] !== undefined) ? state.savedOvr[key] : null;
+    row.net = (row.savedIn ?? row.payment) - row.payment;
+    cum += row.net - (row.prepay || 0);
+    row.savingsTotal = cum;
+    if(crossoverIdx === -1 && cum >= row.balance) crossoverIdx = row.i;
+    if(thresholdIdx === -1 && cum >= triggerTarget) thresholdIdx = row.i;
+  }
+
+  const paidRows = rows.filter(r=>r.paid);
+  const lastPaid = paidRows.length ? paidRows[paidRows.length-1] : null;
+  const lpI = lastPaid ? lastPaid.i : 0;
+  const prepaidNow = rows.filter(r=>r.i<=lpI+1).reduce((s,r)=>s+(r.prepay||0),0);   // pre-payments already made
+  const remainingBalance = (lastPaid ? lastPaid.balance : loan.amount) - (rows[lpI] ? (rows[lpI].prepay||0) : 0);
+  const principalRepaid = loan.amount - remainingBalance;
+  const progressPct = loan.amount>0 ? principalRepaid/loan.amount*100 : 0;
+  const interestPaid = paidRows.reduce((s,r)=>s+r.interest,0);
+  const totalInterest = rows.reduce((s,r)=>s+r.interest,0);
+  const nextRow = rows.find(r=>!r.paid) || rows[rows.length-1];
+  const savedSoFar = paidRows.reduce((s,r)=>s+r.net,0) - prepaidNow;
+  const savedPct = remainingBalance>0 ? savedSoFar/remainingBalance*100 : 0;
+  const installmentsCovered = nextRow.payment>0 ? Math.floor(savedSoFar/nextRow.payment) : 0;
+  const installmentsLeft = rows.filter(r=>!r.paid).length;
+  const today = new Date();
+  const todayIdx = rows.findIndex(r => r.date.getFullYear()===today.getFullYear() && r.date.getMonth()===today.getMonth());
+  const triggerReached = savedSoFar >= triggerTarget;
+
+  return { loan, rows, prepaidNow, crossoverIdx, thresholdIdx, triggerTarget, triggerReached,
+           remainingBalance, principalRepaid,
+           progressPct, interestPaid, totalInterest, nextRow, savedSoFar, savedPct,
+           installmentsCovered, installmentsLeft, todayIdx };
+}
+
+/* ---------- rendering ---------- */
+const app = document.getElementById("app");
+
+function renderToolbar(){
+  const tb = document.getElementById("toolbar");
+  if(!tb) return;
+  const has = !!state.loan;
+  tb.innerHTML = `
+    ${has ? `<button class="btn-secondary" id="btn-edit">✏️ Edit loan</button>` : ""}
+    <button class="btn-secondary" id="btn-export">⬇ Export backup</button>
+    <button class="btn-secondary" id="btn-import">⬆ Import backup</button>
+    ${has ? `<button class="btn-secondary" id="btn-jump">📅 Jump to current month</button>` : ""}
+    ${has ? `<button class="btn-danger" id="btn-delete-top">🗑 Delete loan</button>` : ""}
+    <input type="file" id="import-file" accept=".json,application/json" class="hidden">`;
+  updateEditLabel();
+}
+
+function updateEditLabel(){
+  const b = document.getElementById("btn-edit");
+  if(b) b.textContent = editing ? "✖ Close editor" : "✏️ Edit loan";
+}
+
+
+function toggleEditor(){
+  const d = derive();
+  if(!d) return;
+  editing = !editing;
+  const panel = document.getElementById("edit-panel");
+  if(panel){
+    panel.classList.toggle("hidden", !editing);
+    if(editing){
+      panel.scrollIntoView({behavior:"smooth", block:"start"});
+      panel.classList.remove("flash-panel");
+      void panel.offsetWidth; // restart animation
+      panel.classList.add("flash-panel");
+      const first = panel.querySelector("input");
+      if(first) setTimeout(()=>first.focus({preventScroll:true}), 400);
+    }
+  }
+  updateEditLabel();
+}
+
+/* ---------- toolbar + table events: delegated, survives re-renders ---------- */
+document.addEventListener("click", e=>{
+  if(e.target.closest("#btn-edit")){ toggleEditor(); return; }
+  if(e.target.closest("#btn-top")){ window.scrollTo({top:0, behavior:"smooth"}); return; }
+  if(e.target.closest("#btn-target-edit")){ toggleTargetEdit(true); return; }
+  if(e.target.closest("#btn-target-cancel")){ toggleTargetEdit(false); return; }
+  if(e.target.closest("#btn-export")){ doExport(); return; }
+  if(e.target.closest("#btn-import")){ const f=document.getElementById("import-file"); if(f) f.click(); return; }
+  if(e.target.closest("#btn-jump")){ jumpToCurrent(); return; }
+  const und = e.target.closest(".undo-prepay");
+  if(und){
+    if(!und.dataset.armed){
+      und.dataset.armed = "1"; und.textContent = "Tap again to undo";
+      setTimeout(()=>{ if(document.body.contains(und)){ delete und.dataset.armed; und.textContent = "Undo"; } }, 4000);
+      return;
+    }
+    undoPrepay(und.dataset.id); return;
+  }
+  const del = e.target.closest("#btn-delete, #btn-delete-top");
+  if(del){
+    // two-step confirm inside the page (browser pop-ups can be blocked silently)
+    if(!del.dataset.armed){
+      del.dataset.armed = "1";
+      del.textContent = "⚠ Tap again to delete everything";
+      setTimeout(()=>{ if(document.body.contains(del)){ delete del.dataset.armed; del.textContent = "🗑 Delete loan"; } }, 4000);
+      return;
+    }
+    state = emptyState();
+    editing = false;
+    save(); renderToolbar(); renderApp();
+    window.scrollTo({top:0});
+  }
+});
+document.addEventListener("change", e=>{
+  const fileInput = e.target.closest("#import-file");
+  if(fileInput){ handleImportFile(fileInput); return; }
+  const tr = e.target.closest("#tbody tr[data-d]");
+  if(tr){
+    const key = tr.dataset.d;
+    if(e.target.classList.contains("paid-check")){
+      if(e.target.checked) state.paid[key] = true;
+      else delete state.paid[key];
+    }else if(e.target.classList.contains("saved-input")){
+      const v = e.target.value.trim();
+      if(v==="" || !isFinite(+v)) delete state.savedOvr[key];
+      else state.savedOvr[key] = +v;
+    }else return;
+    save();
+    refreshDynamic();
+  }
+});
+
+async function doExport(){
+  const data = JSON.stringify(state, null, 2);
+  try{
+    const downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+    if(downloads){ await downloads.save({ filename:"loan-tracker-backup.json", data }); return; }
+  }catch(e){ return; }   // viewer declined or save unavailable
+  const blob = new Blob([data], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "loan-tracker-backup.json";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
+function handleImportFile(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const s = JSON.parse(reader.result);
+      const n = normalize(s);
+      if(!n.loan) throw new Error("invalid");
+      state = n;
+      editing = false;
+      save(); renderToolbar(); renderApp();
+      window.scrollTo({top:0, behavior:"smooth"});
+    }catch(err){
+      alert("That file doesn't look like a Loan Tracker backup. Please choose a loan-tracker-backup.json file.");
+    }
+  };
+  reader.readAsText(file);
+  input.value = "";
+}
+
+function jumpToCurrent(){
+  const d = derive();
+  if(!d) return;
+  let idx = d.todayIdx;
+  if(idx === -1) idx = (d.nextRow && !d.nextRow.paid) ? d.nextRow.i-1 : d.rows.length-1;
+  const row = d.rows[idx];
+  const tr = document.querySelector(`#tbody tr[data-d="${row.key}"]`);
+  if(!tr) return;
+  tr.scrollIntoView({behavior:"smooth", block:"center"});
+  tr.classList.remove("flash");
+  void tr.offsetWidth;
+  tr.classList.add("flash");
+}
+
+function renderApp(){
+  if(!state.loan){ renderFormOnly(); return; }
+  const d = derive();
+  const L = d.loan;
+  const nextDue = d.nextRow.paid ? "Paid off 🎉" : fmtDate(d.nextRow.date);
+  const payoff = d.rows[d.rows.length-1];
+  const cov = d.crossoverIdx !== -1 ? d.rows.find(r=>r.i===d.crossoverIdx) : null;
+  const toCollect = Math.max(0, d.triggerTarget - d.savedSoFar);
+
+  const cards = `
+  <div class="cards">
+    <div class="card"><h3>Remaining balance</h3><div class="value" id="c-balance">${fmt(d.remainingBalance)}</div>
+      <p class="sub" id="c-balance-sub">of ${fmt(L.amount)} original</p></div>
+    <div class="card"><h3>Monthly payment</h3><div class="value" id="c-payment">${fmt(d.nextRow.payment)}</div>
+      <p class="sub" id="c-payment-sub">${fmtPct(d.nextRow.ratePct)} · ${d.installmentsLeft} installment${d.installmentsLeft===1?"":"s"} left</p></div>
+    <div class="card"><h3>Next due date</h3><div class="value" id="c-next">${nextDue}</div>
+      <p class="sub" id="c-next-sub">${d.nextRow.paid ? "all payments done" : "payment #" + d.nextRow.i}</p></div>
+    <div class="card"><h3>Projected payoff</h3><div class="value" id="c-payoff">${fmtDate(payoff.date)}</div>
+      <p class="sub">final payment ${fmt(payoff.payment)}</p></div>
+    <div class="card"><h3>Interest paid so far</h3><div class="value" id="c-interest">${fmt(d.interestPaid)}</div>
+      <p class="sub" id="c-interest-sub">of ${fmt(d.totalInterest)} total interest</p></div>
+    <div class="card"><h3>Savings account</h3><div class="value" id="c-savings">${fmt(d.savedSoFar)}</div>
+      <p class="sub" id="c-savings-sub">covers ${d.installmentsCovered} full installment${d.installmentsCovered===1?"":"s"} (${fmt(d.nextRow.payment)} each)</p></div>
+    <div class="card ${cov ? "highlight":""}"><h3>Savings reach balance</h3>
+      <div class="value" id="c-crossover">${cov ? fmtDate(cov.date) : "—"}</div>
+      <p class="sub" id="c-crossover-sub">${cov
+        ? "saved " + fmt(cov.savingsTotal) + " vs. owed " + fmt(cov.balance) + " (row outlined below)"
+        : "planned savings never reach the balance within the term"}</p></div>
+    <div class="card ${d.triggerReached ? "trigger-reached":""}" id="c-trigger-card">
+      <h3>Pre-payment trigger</h3>
+      <div class="value" id="c-trigger">${d.triggerReached ? "🔔 Reached!" : fmt(toCollect)}</div>
+      <p class="sub" id="c-trigger-sub">${trigInst()} installments + ${fmt(trigLump())} = ${fmt(d.triggerTarget)}</p>
+      <button type="button" class="card-link" id="btn-target-edit">✏️ Edit target</button>
+      <form id="target-form" class="target-form hidden">
+        <label for="s-inst">Installments</label>
+        <input type="number" id="s-inst" min="0" step="1" required value="${trigInst()}">
+        <label for="s-lump">Extra lump sum (Ft)</label>
+        <input type="number" id="s-lump" min="0" step="any" required value="${trigLump()}">
+        <p class="form-error" id="target-error"></p>
+        <div class="target-actions">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="btn-secondary" id="btn-target-cancel">Cancel</button>
+        </div>
+      </form></div>
+  </div>
+
+  <div class="card progress-card">
+    <h3>Progress</h3>
+    <div class="progress-track"><div class="progress-fill" id="p-fill" style="width:${d.progressPct.toFixed(1)}%"></div></div>
+    <div class="progress-labels">
+      <span id="p-label">${d.progressPct.toFixed(1)}% repaid (${fmt(d.principalRepaid)})</span>
+      <span id="c-saved">Saved so far: ${fmt(d.savedSoFar)} · covers ${d.savedPct.toFixed(1)}% of remaining balance</span>
+    </div>
+  </div>`;
+
+  const firstUnpaid = d.rows.find(r=>!r.paid);
+  const firstUnpaidKey = firstUnpaid ? firstUnpaid.key : null;
+  const rowKeys = new Set(d.rows.map(r=>r.key));
+  const logHtml = key => state.changes.filter(c=>c.key===key).map(c=>`
+    <tr class="change-row ${c.kind==="prepay"?"prepay":""}"><td colspan="10">
+      <span class="change-tag">${c.kind==="prepay" ? "💰 Pre-payment" : "✏️ Loan change"}</span>${esc(c.text)}
+      ${c.kind==="prepay" && c.key===firstUnpaidKey ? `<button class="undo-prepay" data-id="${esc(c.id)}">Undo</button>` : ""}
+    </td></tr>`).join("");
+  const orphanHtml = state.changes.filter(c=>!rowKeys.has(c.key)).map(c=>`
+    <tr class="change-row ${c.kind==="prepay"?"prepay":""}"><td colspan="10"><span class="change-tag">${c.kind==="prepay" ? "💰 Pre-payment" : "✏️ Loan change"}</span>${esc(c.text)} (${esc(c.key)})</td></tr>`).join("");
+
+  const bodyRows = d.rows.map(r=>logHtml(r.key) + `
+    <tr data-i="${r.i}" data-d="${r.key}" class="${r.paid?"paid ":""}${r.i===d.crossoverIdx?"crossover ":""}${r.i===d.thresholdIdx?"threshold ":""}${r.i-1===d.todayIdx?"today-row":""}">
+      <td>${r.i}</td>
+      <td>${fmtDate(r.date)}</td>
+      <td>${fmtPct(r.ratePct)}</td>
+      <td>${fmt(r.payment)}</td>
+      <td>${fmt(r.interest)}</td>
+      <td>${fmt(r.principal)}</td>
+      <td>${fmt(r.balance)}</td>
+      <td><input type="checkbox" class="paid-check" aria-label="Mark payment ${r.i} as paid" ${r.paid?"checked":""}></td>
+      <td><input type="number" step="any" min="0" class="saved-input" value="${r.savedIn ?? ""}"
+           placeholder="${r.payment}" aria-label="Saved amount for payment ${r.i}"></td>
+      <td class="savings-total">${fmt(r.savingsTotal)}</td>
+    </tr>`).join("") + orphanHtml;
+
+  const table = `
+  <div class="table-card">
+    <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Due date</th><th>Rate</th><th>Payment</th><th>Interest</th><th>Principal</th>
+        <th>Balance after</th><th>Paid</th><th>Saved</th><th>Savings total</th>
+      </tr></thead>
+      <tbody id="tbody">${bodyRows}</tbody>
+    </table>
+    </div>
+    <div class="top-bar"><button type="button" class="btn-secondary" id="btn-top">⬆ Back to top</button></div>
+    <div class="table-note">
+      Saved defaults to your monthly payment — leaving it as-is adds nothing to savings. Enter 600 with a 450 payment and 150 is added;
+      enter less and the total drops. Clear a cell to restore the default. Savings are assumed to earn no interest.
+      The purple-outlined row is the first month your savings cover the outstanding balance; the green-dashed row is where savings
+      hit the pre-payment trigger (${trigInst()} installments + ${fmt(trigLump())}).
+      Paid installments stay exactly as recorded; use ✏️ Edit loan to apply a new rate or installment count from a chosen
+      starting date onward — it only recalculates rows you haven't marked paid yet. Every change and pre-payment is logged
+      as a highlighted line right above the first installment it affects, and the Rate column shows the rate each installment runs on.
+    </div>
+  </div>`;
+
+  const prepayPanel = `
+  <div class="panel prepay-panel ${d.triggerReached ? "" : "hidden"}" id="prepay-panel">
+    <h2>🔔 Pre-payment available</h2>
+    <p class="panel-hint">Your savings reached the trigger. Decide whether to put money towards the principal now.
+      Savings available: <b id="pp-avail">${fmt(Math.max(0,d.savedSoFar))}</b> · remaining balance: <b id="pp-balance">${fmt(d.remainingBalance)}</b>.
+      The amount you enter is deducted from both. Compare the two options below and apply the one you prefer.</p>
+    <form id="prepay-form">
+      <div class="form-grid">
+        <div><label for="pp-amount">Pre-payment amount (Ft)</label>
+          <input type="number" id="pp-amount" min="1" step="any" placeholder="e.g. 5000000"><p class="pp-hint" id="pp-suggest"></p></div>
+      </div>
+      <div id="pp-preview" class="pp-preview"></div>
+      <p class="form-error" id="prepay-error"></p>
+      <div class="actions">
+        <button type="button" class="btn-primary" id="pp-apply-shorter">Apply: shorter period</button>
+        <button type="button" class="btn-primary" id="pp-apply-lower">Apply: lower installment</button>
+      </div>
+    </form>
+  </div>`;
+
+  const editPanel = `<div class="panel hidden" id="edit-panel">
+       <h2>Edit loan</h2>
+       <p class="panel-hint">Change the rate and/or the number of remaining installments from a chosen starting date.
+       Installments already marked paid are never touched; the schedule is recalculated from the remaining balance at that point.</p>
+       ${termsFormHtml(d)}
+     </div>`;
+
+  app.innerHTML = editPanel + cards + prepayPanel + table +
+    `<div class="footer-actions">
+       <button class="btn-danger" id="btn-delete">🗑 Delete loan</button>
+     </div>
+     <p class="backup-note">Export saves a small backup file with your loan, terms and all tracked payments — keep it somewhere safe (e.g. Files or iCloud Drive) and use Import to restore it on a new device or browser, without re-entering anything.</p>`;
+
+  if(editing) document.getElementById("edit-panel").classList.remove("hidden");
+  wireTermsForm();
+  wireTargetForm();
+  wirePrepayForm();
+  updateSuggestedPrepay();
+  updatePrepayPreview();
+}
+
+function termsFormHtml(d){
+  const firstUnpaid = d.rows.find(r=>!r.paid);
+  const minKey = firstUnpaid ? firstUnpaid.key : dateKey(d.rows[d.rows.length-1].date);
+  const defRate = firstUnpaid ? firstUnpaid.ratePct : d.rows[d.rows.length-1].ratePct;
+  const defCount = firstUnpaid ? d.rows.length - firstUnpaid.i + 1 : 1;
+  return `
+  <form id="terms-form">
+    <div class="form-grid">
+      <div><label for="t-from">New terms from (due date of first affected installment)</label>
+        <input type="date" id="t-from" required value="${minKey}" min="${minKey}"></div>
+      <div><label for="t-rate">Annual interest rate from that date (%)</label>
+        <input type="number" id="t-rate" min="0" max="100" step="any" required value="${defRate}"></div>
+      <div><label for="t-count">Number of installments from that date</label>
+        <input type="number" id="t-count" min="1" max="600" step="1" required value="${defCount}"></div>
+    </div>
+    <p class="form-error" id="terms-error"></p>
+    <div class="actions">
+      <button type="submit" class="btn-primary">Apply new terms</button>
+    </div>
+  </form>`;
+}
+
+function wireTermsForm(){
+  const form = document.getElementById("terms-form");
+  if(!form) return;
+  form.addEventListener("submit", e=>{
+    e.preventDefault();
+    const err = document.getElementById("terms-error");
+    const g = id => document.getElementById(id);
+    const fromKey = g("t-from").value;
+    const rate = +g("t-rate").value;
+    const count = +g("t-count").value;
+    if(!fromKey){ err.textContent="Please choose a starting date."; return; }
+    if(!(rate>=0)){ err.textContent="Interest rate cannot be negative."; return; }
+    if(!(count>=1 && Number.isInteger(count))){ err.textContent="Number of installments must be a whole number (at least 1)."; return; }
+    const from = parseISO(fromKey);
+    const rows = derive().rows;
+    let b = -1;
+    for(let j=0;j<rows.length;j++){
+      if(!rows[j].paid && rows[j].date.getTime() >= from.getTime()){ b = j; break; }
+    }
+    if(b === -1){ err.textContent = "That date must fall on or after the first unpaid installment (" + fmtDate((rows.find(r=>!r.paid) || rows[rows.length-1]).date) + ")."; return; }
+    if(rows.some((r,j)=>j>=b && r.paid)){ err.textContent = "There are paid installments after that date — unmark them first."; return; }
+
+    const oldRow = rows[b], oldLeft = rows.length - b;
+    if(rate === oldRow.ratePct && count === oldLeft){ err.textContent = "Nothing would change — these are already the current terms from that date."; return; }
+
+    // keep earlier rows exactly as they were (same payment basis), then append the new block
+    const { kept, atB } = segmentsBefore(state.segments, b);
+    const ns = { ratePct: rate, count: count, term: count };
+    if(atB && atB.prepay) ns.prepay = atB.prepay;       // a pre-payment made at this point stays in effect
+    kept.push(ns);
+    state.segments = kept;
+
+    const nr = buildSchedule(state.loan, state.segments)[b];
+    const rateTxt = rate === oldRow.ratePct ? "rate " + fmtPct(rate) + " (unchanged)" : "rate " + fmtPct(oldRow.ratePct) + " → " + fmtPct(rate);
+    const cntTxt = count === oldLeft ? count + " installments left (unchanged)" : "installments left " + oldLeft + " → " + count;
+    state.changes.push({ id:newId(), kind:"edit", key:oldRow.key, amount:0,
+      text: "Terms changed from this installment on: " + rateTxt + " · " + cntTxt + " · payment " + fmt(oldRow.payment) + " → " + fmt(nr ? nr.payment : 0) });
+
+    editing = false;
+    save(); renderApp(); updateEditLabel();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+}
+
+function toggleTargetEdit(open){
+  const f = document.getElementById("target-form"), btn = document.getElementById("btn-target-edit");
+  if(!f) return;
+  f.classList.toggle("hidden", !open);
+  btn.classList.toggle("hidden", open);
+  if(open) document.getElementById("s-inst").focus();
+}
+
+function wireTargetForm(){
+  const form = document.getElementById("target-form");
+  if(!form) return;
+  form.addEventListener("submit", e=>{
+    e.preventDefault();
+    const err = document.getElementById("target-error");
+    const ti = +document.getElementById("s-inst").value, tl = +document.getElementById("s-lump").value;
+    if(!(Number.isInteger(ti) && ti>=0)){ err.textContent = "Installments must be a whole number (0 or more)."; return; }
+    if(!(tl>=0)){ err.textContent = "The lump sum cannot be negative."; return; }
+    state.settings = { triggerInstallments:ti, triggerLump:tl };
+    save(); renderApp();
+  });
+}
+
+/* works out what a pre-payment would do, without touching the saved state */
+function planPrepay(d, amount, mode){
+  if(!d.triggerReached) return { error:"The pre-payment trigger has not been reached yet." };
+  if(!(amount>0)) return { error:"Enter an amount to see the effect." };
+  if(amount > d.savedSoFar) return { error:"That is more than your savings (" + fmt(d.savedSoFar) + ")." };
+  if(amount >= d.remainingBalance) return { error:"The pre-payment must be smaller than the remaining balance (" + fmt(d.remainingBalance) + ")." };
+  const rows = d.rows;
+  const b = rows.findIndex(r=>!r.paid);
+  if(b === -1) return { error:"All installments are already paid." };
+  if(rows.some((r,j)=>j>b && r.paid)) return { error:"There are paid installments after the next unpaid one — unmark them first." };
+  const row = rows[b];
+  const segs = splitAt(state.segments, b);
+  let acc = 0, seg = null;
+  for(const g of segs){ if(acc === b){ seg = g; break; } acc += g.count; }
+  if(!seg) return { error:"Could not apply the pre-payment here." };
+  seg.prepay = (seg.prepay || 0) + amount;
+  if(mode === "shorter") seg.fixedPay = row.payment;
+  else { delete seg.fixedPay; seg.term = seg.count; }
+  const newRows = buildSchedule(state.loan, segs);
+  const nr = newRows[b];
+  const intLeft = arr => arr.slice(b).reduce((t,r)=>t+r.interest,0);
+  return {
+    segs, b, row, newRows,
+    oldBal:d.remainingBalance, newBal:d.remainingBalance-amount,
+    oldSavings:d.savedSoFar, newSavings:d.savedSoFar-amount,
+    oldPay:row.payment, newPay: nr ? nr.payment : 0,
+    oldLeft: rows.length-b, newLeft: newRows.length-b,
+    oldEnd: rows[rows.length-1].date, newEnd: newRows[newRows.length-1].date,
+    oldInt: intLeft(rows), newInt: intLeft(newRows)
+  };
+}
+
+/* suggested pre-payment = savings minus the security amount (the extra lump sum of the savings target) */
+function updateSuggestedPrepay(force){
+  const inp = document.getElementById("pp-amount");
+  if(!inp) return;
+  const d = derive();
+  if(!d) return;
+  const sug = Math.max(0, Math.min(Math.floor(d.savedSoFar - trigLump()), Math.floor(d.remainingBalance) - 1));
+  const hint = document.getElementById("pp-suggest");
+  if(hint) hint.innerHTML = `Suggested: savings − security amount (${fmt(trigLump())}) = <b>${fmt(sug)}</b> · <button type="button" class="card-link" id="pp-reset">use suggestion</button>`;
+  if(force) delete inp.dataset.touched;
+  if(force || !inp.dataset.touched) inp.value = sug > 0 ? sug : "";   // never overwrite a value the person typed
+}
+
+function updatePrepayPreview(){
+  const box = document.getElementById("pp-preview");
+  if(!box) return;
+  const d = derive();
+  if(!d || !d.triggerReached){ box.innerHTML = ""; return; }
+  const amount = Math.round(+document.getElementById("pp-amount").value);
+  const a = planPrepay(d, amount, "shorter");   // keep the installment, fewer installments
+  const b = planPrepay(d, amount, "lower");     // keep the number of installments, lower installment
+  if(a.error){ box.innerHTML = `<p class="pp-hint">${esc(a.error)}</p>`; return; }
+  const row = (label, cur, s, l, cls) => `<tr class="${cls||""}"><td>${label}</td><td>${cur}</td><td>${s}</td><td>${l}</td></tr>`;
+  box.innerHTML = `<div class="pp-wrap"><table class="pp-table">
+    <thead><tr><th></th><th>Current<br><span class="pp-sub">no pre-payment</span></th>
+      <th>Shorter period<br><span class="pp-sub">same installment</span></th>
+      <th>Lower installment<br><span class="pp-sub">same period</span></th></tr></thead>
+    <tbody>
+      ${row("Remaining balance", fmt(a.oldBal), fmt(a.newBal), fmt(b.newBal))}
+      ${row("Savings", fmt(a.oldSavings), fmt(a.newSavings), fmt(b.newSavings))}
+      ${row("Monthly payment", fmt(a.oldPay), fmt(a.newPay), fmt(b.newPay))}
+      ${row("Installments left", a.oldLeft, a.newLeft, b.newLeft)}
+      ${row("Final payment", fmtDate(a.oldEnd), fmtDate(a.newEnd), fmtDate(b.newEnd))}
+      ${row("Interest still to pay", fmt(a.oldInt), fmt(a.newInt), fmt(b.newInt))}
+      ${row("Interest saved vs. current", "—", fmt(a.oldInt - a.newInt), fmt(b.oldInt - b.newInt), "pp-hl")}
+    </tbody></table></div>`;
+}
+
+function wirePrepayForm(){
+  const form = document.getElementById("prepay-form");
+  if(!form) return;
+  document.getElementById("pp-amount").addEventListener("input", ()=>{ document.getElementById("pp-amount").dataset.touched = "1"; updatePrepayPreview(); });
+  form.addEventListener("click", e=>{ if(e.target.closest("#pp-reset")){ updateSuggestedPrepay(true); updatePrepayPreview(); } });
+  form.addEventListener("submit", e=>e.preventDefault());
+  document.getElementById("pp-apply-shorter").addEventListener("click", ()=>applyPrepay("shorter"));
+  document.getElementById("pp-apply-lower").addEventListener("click", ()=>applyPrepay("lower"));
+  function applyPrepay(mode){
+    const err = document.getElementById("prepay-error");
+    const d = derive();
+    const amount = Math.round(+document.getElementById("pp-amount").value);
+    const p = planPrepay(d, amount, mode);
+    if(p.error){ err.textContent = p.error; return; }
+    state.segments = p.segs;
+    const effect = mode === "shorter"
+      ? "payment stays " + fmt(p.oldPay) + " · installments left " + p.oldLeft + " → " + p.newLeft
+      : "installments left " + p.oldLeft + " · payment " + fmt(p.oldPay) + " → " + fmt(p.newPay);
+    state.changes.push({ id:newId(), kind:"prepay", key:p.row.key, amount,
+      text: fmt(amount) + " paid from savings towards the principal · balance " + fmt(p.oldBal) + " → " + fmt(p.newBal) + " · " + effect });
+    save(); renderApp();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+}
+
+function undoPrepay(id){
+  const ch = state.changes.find(c=>c.id===id);
+  if(!ch) return;
+  const rows = derive().rows;
+  const b = rows.findIndex(r=>r.key===ch.key);
+  if(b !== -1 && !rows.some((r,j)=>j>=b && r.paid)){
+    let acc = 0;
+    for(const g of state.segments){
+      if(acc === b){
+        g.prepay = (g.prepay || 0) - ch.amount;
+        if(g.prepay <= 0){ delete g.prepay; delete g.fixedPay; g.term = g.count; }
+        break;
+      }
+      acc += g.count;
+    }
+  }
+  state.changes = state.changes.filter(c=>c.id!==id);
+  save(); renderApp();
+}
+
+function loanFormHtml(){
+  const today = dateKey(new Date());
+  return `
+  <form id="loan-form">
+    <div class="form-grid">
+      <div><label for="f-name">Loan name (optional)</label>
+        <input type="text" id="f-name" placeholder="e.g. Home mortgage"></div>
+      <div><label for="f-amount">Loan amount (Ft)</label>
+        <input type="number" id="f-amount" min="1" step="any" required placeholder="10000000"></div>
+      <div><label for="f-rate">Annual interest rate (%)</label>
+        <input type="number" id="f-rate" min="0" max="100" step="any" required placeholder="7.5"></div>
+      <div><label for="f-term">Term (months)</label>
+        <input type="number" id="f-term" min="1" max="600" step="1" required placeholder="120"></div>
+      <div><label for="f-start">Start date (first payment one month later)</label>
+        <input type="date" id="f-start" required value="${today}"></div>
+      <div><label for="f-tinst">Savings target: number of installments</label>
+        <input type="number" id="f-tinst" min="0" step="1" required value="${DEFAULT_TRIGGER_INSTALLMENTS}"></div>
+      <div><label for="f-tlump">Savings target: extra lump sum (Ft)</label>
+        <input type="number" id="f-tlump" min="0" step="any" required value="${DEFAULT_TRIGGER_LUMP}"></div>
+    </div>
+    <p class="form-error" id="form-error"></p>
+    <div class="actions">
+      <button type="submit" class="btn-primary">Create loan schedule</button>
+    </div>
+  </form>`;
+}
+
+function renderFormOnly(){
+  app.innerHTML = `<div class="panel"><h2>Set up your loan</h2>
+      <p class="panel-hint">Rate changes later? No problem — once created, use ✏️ Edit loan above to set a new rate and installment count from any future date.</p>
+      ${loanFormHtml()}</div>
+  <p class="backup-note">Moving to a new computer or browser? Use ⬆ Import backup in the toolbar above — your loan, tracked payments and terms are restored instantly.</p>`;
+  const form = document.getElementById("loan-form");
+  form.addEventListener("submit", e=>{
+    e.preventDefault();
+    const err = document.getElementById("form-error");
+    const g = id => document.getElementById(id);
+    const amount = +g("f-amount").value, rate = +g("f-rate").value,
+          term = +g("f-term").value, start = g("f-start").value;
+    if(!(amount>0)){ err.textContent="Please enter a loan amount greater than zero."; return; }
+    if(!(rate>=0)){ err.textContent="Interest rate cannot be negative."; return; }
+    if(!(term>=1 && Number.isInteger(term))){ err.textContent="Term must be a whole number of months (at least 1)."; return; }
+    if(!start){ err.textContent="Please choose a start date."; return; }
+    const tInst = +g("f-tinst").value, tLump = +g("f-tlump").value;
+    if(!(Number.isInteger(tInst) && tInst>=0) || !(tLump>=0)){ err.textContent="Savings target values must be zero or more (installments as a whole number)."; return; }
+    state = {
+      loan:{ name:g("f-name").value.trim(), amount, startDate:start },
+      segments:[{ ratePct: rate, count: term, term }],
+      paid:{}, savedOvr:{}, changes:[],
+      settings:{ triggerInstallments:tInst, triggerLump:tLump }
+    };
+    save(); renderToolbar(); renderApp();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+}
+
+/* update cards/cells without rebuilding the table, so typing keeps focus */
+function refreshDynamic(){
+  const d = derive();
+  if(!d) return;
+  const g = id => document.getElementById(id);
+  const nextDue = d.nextRow.paid ? "Paid off 🎉" : fmtDate(d.nextRow.date);
+  const toCollect = Math.max(0, d.triggerTarget - d.savedSoFar);
+  g("c-balance").textContent = fmt(d.remainingBalance);
+  g("c-payment").textContent = fmt(d.nextRow.payment);
+  g("c-payment-sub").textContent = `${fmtPct(d.nextRow.ratePct)} · ${d.installmentsLeft} installment${d.installmentsLeft===1?"":"s"} left`;
+  g("c-next").textContent = nextDue;
+  g("c-next-sub").textContent = d.nextRow.paid ? "all payments done" : "payment #" + d.nextRow.i;
+  g("c-interest").textContent = fmt(d.interestPaid);
+  g("c-interest-sub").textContent = `of ${fmt(d.totalInterest)} total interest`;
+  g("c-savings").textContent = fmt(d.savedSoFar);
+  g("c-savings-sub").textContent = `covers ${d.installmentsCovered} full installment${d.installmentsCovered===1?"":"s"} (${fmt(d.nextRow.payment)} each)`;
+  g("p-fill").style.width = d.progressPct.toFixed(1) + "%";
+  g("p-label").textContent = `${d.progressPct.toFixed(1)}% repaid (${fmt(d.principalRepaid)})`;
+  g("c-saved").textContent = `Saved so far: ${fmt(d.savedSoFar)} · covers ${d.savedPct.toFixed(1)}% of remaining balance`;
+
+  const cov = d.crossoverIdx !== -1 ? d.rows.find(r=>r.i===d.crossoverIdx) : null;
+  g("c-crossover").textContent = cov ? fmtDate(cov.date) : "—";
+  g("c-crossover-sub").textContent = cov
+    ? "saved " + fmt(cov.savingsTotal) + " vs. owed " + fmt(cov.balance) + " (row outlined below)"
+    : "planned savings never reach the balance within the term";
+  document.querySelectorAll(".card.highlight").forEach(c=>c.classList.remove("highlight"));
+  if(cov) g("c-crossover").closest(".card").classList.add("highlight");
+
+  g("c-trigger-card").classList.toggle("trigger-reached", d.triggerReached);
+  g("prepay-panel").classList.toggle("hidden", !d.triggerReached);
+  g("pp-avail").textContent = fmt(Math.max(0, d.savedSoFar));
+  g("pp-balance").textContent = fmt(d.remainingBalance);
+  updateSuggestedPrepay();
+  updatePrepayPreview();
+  g("c-trigger").textContent = d.triggerReached ? "🔔 Reached!" : fmt(toCollect);
+  g("c-trigger-sub").textContent = `${trigInst()} installments + ${fmt(trigLump())} = ${fmt(d.triggerTarget)}`;
+
+  document.querySelectorAll("#tbody tr[data-d]").forEach(tr=>{
+    const row = d.rows.find(r=>r.key===tr.dataset.d);
+    if(!row) return;
+    tr.classList.toggle("paid", row.paid);
+    tr.classList.toggle("crossover", row.i === d.crossoverIdx);
+    tr.classList.toggle("threshold", row.i === d.thresholdIdx);
+    tr.querySelector(".savings-total").textContent = fmt(row.savingsTotal);
+  });
+}
+
+renderToolbar();
+renderApp();
+</script>
+</body>
+</html>
